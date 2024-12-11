@@ -1,4 +1,4 @@
-const { Builder, By } = require("selenium-webdriver");
+const { Builder, By, until } = require("selenium-webdriver");
 const fs = require("fs");
 const path = require("path");
 
@@ -11,6 +11,25 @@ function writeLog(message) {
   const logMessage = `[${timestamp}] ${message}\n`;
   fs.appendFileSync(logFilePath, logMessage);
   console.log(message); // Keep console output as well
+}
+
+// Function to handle and log alerts
+async function handleAlert(driver) {
+  try {
+    // Wait for the alert to appear
+    await driver.wait(until.alertIsPresent(), 5000);
+    const alert = await driver.switchTo().alert();
+    const alertText = await alert.getText();
+    writeLog(`⚠️ Alert detected: "${alertText}"`);
+    await alert.accept(); // Accept the alert
+    writeLog("✔️ Alert accepted successfully.");
+  } catch (error) {
+    if (error.name === "TimeoutError") {
+      writeLog("✔️ No alert detected within the wait time.");
+    } else {
+      writeLog(`❌ Error while handling alert: ${error.message}`);
+    }
+  }
 }
 
 (async function testAuthAppWithErrors() {
@@ -31,7 +50,7 @@ function writeLog(message) {
 
     // Navigate to the Login/Register app
     await driver.get("http://localhost:5173");
-    writeLog("✔️  WebDriver initialized and navigated to Auth app homepage.");
+    writeLog("✔️ WebDriver initialized and navigated to Auth app homepage.");
     await delay(2000);
 
     // === Test Case 1: Register New User with Error ===
@@ -41,7 +60,14 @@ function writeLog(message) {
       writeLog("1. Navigating to incorrect Register page...");
       await driver.get("http://localhost:5173/incorrect-register"); // Incorrect route
       await delay(2000);
-      writeLog("❌ Error while opening the webpage with incorrect API.")
+
+      // Check if the page is empty or has an error
+      const bodyText = await driver.findElement(By.tagName("body")).getText();
+      if (!bodyText) {
+        writeLog("❌ Error: Empty page or incorrect route detected.");
+      } else {
+        writeLog("✔️ Page loaded but may have incorrect content.");
+      }
 
       writeLog("🔄 Reopening Register page...");
       await driver.get("http://localhost:5173/register"); // Correct route
@@ -55,13 +81,15 @@ function writeLog(message) {
       await nameInput.sendKeys("Test User");
       await emailInput.sendKeys("testuserexample.com"); // Invalid email format
       await passwordInput.sendKeys("Test@1234");
-      writeLog("❌  Error : '@' missing in Email field.");
+      writeLog("❌ Error: '@' missing in Email field.");
 
       writeLog("3. Submitting the registration form...");
       const registerButton = await driver.findElement(By.css(".btn-primary"));
       await registerButton.click();
-      writeLog("✔️  Registration form testing is over.");
-      await delay(3000);
+
+      // Check for alert related to invalid email
+      await handleAlert(driver);
+      await delay(2000);
     } catch (error) {
       writeLog(`❌ Error in Test Case 1: ${error.message}`);
     }
@@ -73,7 +101,14 @@ function writeLog(message) {
       writeLog("1. Navigating to incorrect Login page...");
       await driver.get("http://localhost:5173/incorrect-login"); // Incorrect route
       await delay(2000);
-      writeLog("❌ Error while opening the webpage with incorrect API.")
+
+      // Check if the page is empty or has an error
+      const loginBodyText = await driver.findElement(By.tagName("body")).getText();
+      if (!loginBodyText) {
+        writeLog("❌ Error: Empty page or incorrect route detected.");
+      } else {
+        writeLog("✔️ Page loaded but may have incorrect content.");
+      }
 
       writeLog("🔄 Reopening Login page...");
       await driver.get("http://localhost:5173/login"); // Correct route
@@ -85,13 +120,15 @@ function writeLog(message) {
 
       await loginEmailInput.sendKeys("wronguser@example.com");
       await loginPasswordInput.sendKeys("Wrong1234");
-      writeLog("❌  Incorrect Email or Password.");
+      writeLog("❌ Incorrect Email or Password.");
 
       writeLog("3. Submitting the login form...");
       const loginButton = await driver.findElement(By.css(".btn-primary"));
       await loginButton.click();
-      writeLog("✔️  Login form testing is over.");
-      await delay(3000);
+
+      // Check for alert related to incorrect login
+      await handleAlert(driver);
+      await delay(2000);
     } catch (error) {
       writeLog(`❌ Error in Test Case 2: ${error.message}`);
     }
